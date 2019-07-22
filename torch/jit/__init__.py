@@ -484,7 +484,7 @@ class TracingCheckError(Exception):
 
 # Check the traced module against a set of user-provided validation inputs
 @torch.no_grad()
-def _check_trace(check_inputs, func,  traced_func, check_tolerance,
+def _check_trace(check_inputs, func, traced_func, check_tolerance,
                  force_outplace, is_trace_module, _module_class):
     # Note: tracing is independent of optimizations, which consume the trace
     for inputs in check_inputs:
@@ -1450,7 +1450,7 @@ if _enabled:
         """
         def __init__(self, _qualified_name=None, _compilation_unit=None, _cpp_module=None):
             if _qualified_name is None:
-                _qualified_name = type(self).__name__
+                _qualified_name = _jit_internal._qualified_name(self.__class__)
             if _compilation_unit is None:
                 _compilation_unit = _python_cu
 

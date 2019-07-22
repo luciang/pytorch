@@ -15290,7 +15290,7 @@ class TestAsync(JitTestCase):
                 return torch.neg(x1), self.param, self.const, torch.neg(x2), self.param
 
             @torch.jit.script_method
-            def wait_script(self, x1, x2):
+            def forward(self, x1, x2):
                 fut = torch.jit._fork(self.foo, x1, x2)
                 y_hat = self.foo(x1, x2)
                 y = torch.jit._wait(fut)
@@ -15302,7 +15302,7 @@ class TestAsync(JitTestCase):
         m = Mod()
 
         with torch.jit.optimized_execution(False):
-            y, y_hat = m.wait_script(x1, x2)
+            y, y_hat = m.forward(x1, x2)
 
         self.assertEqual(y, y_hat)
 
