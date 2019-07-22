@@ -502,6 +502,7 @@ def _check_trace(check_inputs, func,  traced_func, check_tolerance,
                 check_trace=False,
                 _force_outplace=force_outplace,
                 _module_class=_module_class,
+                _compilation_unit=torch._C.CompilationUnit(),
             )
             check_mod_func = check_mod._c._get_method(traced_func.name)
             inputs = inputs[traced_func.name]
@@ -650,10 +651,10 @@ def make_tuple(example_inputs):
     return example_inputs
 
 
-def make_module(mod, _module_class):
+def make_module(mod, _module_class, _compilation_unit):
     if _module_class is None:
         _module_class = TopLevelTracedModule
-    return _module_class(mod)
+    return _module_class(mod, _compilation_unit=_compilation_unit)
 
 def wrap_check_inputs(check_inputs):
     if check_inputs is None:
@@ -667,7 +668,8 @@ def trace(func,
           check_inputs=None,
           check_tolerance=1e-5,
           _force_outplace=False,
-          _module_class=None):
+          _module_class=None,
+          _compilation_unit=_python_cu):
     """
     Trace a function and return an executable ``ScriptModule`` or ``torch.jit._C.Function``
     that will be optimized using just-in-time compilation.
@@ -797,7 +799,8 @@ def trace_module(mod,
                  check_inputs=None,
                  check_tolerance=1e-5,
                  _force_outplace=False,
-                 _module_class=None):
+                 _module_class=None,
+                 _compilation_unit=_python_cu):
     """
     Trace a module and return an executable ``ScriptModule`` that will be optimized
     using just-in-time compilation.
@@ -863,7 +866,6 @@ def trace_module(mod,
         module = torch.jit.trace_module(n, inputs)
 
     """
-
     if not _enabled:
         return mod
     var_lookup_fn = _create_interpreter_name_lookup_fn(0)
@@ -874,7 +876,7 @@ def trace_module(mod,
     if not isinstance(inputs, dict):
         raise AttributeError("expected a dictionary of (method_name, input) pairs")
 
-    module = make_module(mod, _module_class)
+    module = make_module(mod, _module_class, _compilation_unit)
 
     for method_name, example_inputs in inputs.items():
         # this is needed since Module.__call__ sets up some extra tracing
@@ -1450,14 +1452,14 @@ if _enabled:
             if _qualified_name is None:
                 _qualified_name = type(self).__name__
             if _compilation_unit is None:
-                _compilation_unit = torch._C.CompilationUnit()
+                _compilation_unit = _python_cu
 
             # If we were give a _cpp_module, use that one as the backing cpp
             # module instead of creating a fresh one.
             if _cpp_module is not None:
                 self.__dict__['_c'] = _cpp_module
             else:
-                self.__dict__['_c'] = torch._C.ScriptModule(_qualified_name, _compilation_unit)
+                self.__dict__['_c'] = torch._C.ScriptModule(_qualified_name, _compilation_unit, True)
 
             Module.__init__(self)
             self._parameters = OrderedParameterDict(self._c)
@@ -1778,9 +1780,10 @@ for name, method in _get_methods(torch.nn.Module):
 class TracedModule(ScriptModule):
     __frozen = False
 
-    def __init__(self, orig, id_set=None):
+    def __init__(self, orig, id_set=None, _compilation_unit=None):
         # XXX: orig can be a nn.Module or a function!
-        super(TracedModule, self).__init__()
+        super(TracedModule, self).__init__(_qualified_name=_jit_internal._qualified_name(orig.__class__),
+                                           _compilation_unit=_compilation_unit)
         if id_set is None:
             id_set = set()
 
